@@ -3,105 +3,130 @@
 #include "bsp/nano.h"
 #include "drivers/interrupt/external_interrupt.h"
 
-typedef enum {
-    ROSU_MASINI,
-    VERDE_MASINI,
-    GALBEN_MASINI,
-    VERDE_PIETONI_BLINK
-} Stari;
+// Definiții Pini
+#define SCL      GPIO_PORTD, 2
+#define SDA      GPIO_PORTD, 3
+#define PWM      GPIO_PORTB, 2
+#define RPM      GPIO_PORTB, 3
+#define TEMP     GPIO_PORTB, 4
+#define SUS      GPIO_PORTD, 7 // d7
+#define DREAPTA  GPIO_PORTD, 6 // d6
+#define JOS      GPIO_PORTD, 5 // d5
+#define STANGA   GPIO_PORTB, 0 // d8
 
-volatile Stari stare=VERDE_MASINI;
-volatile uint8_t apasare=0;
+#define LCD_ADDR (0x27 << 1)
 
-void buton(){
-    if (stare == VERDE_MASINI){
-            apasare=1;
+// --- Driver LCD I2C Bit-Banging ---
+
+void I2C_Delay() {
+    for(volatile uint16_t i = 0; i < 400; i++); 
+}
+
+void I2C_Start() {
+    GPIO_Write(SDA, GPIO_HIGH); GPIO_Write(SCL, GPIO_HIGH); I2C_Delay();
+    GPIO_Write(SDA, GPIO_LOW); I2C_Delay();
+    GPIO_Write(SCL, GPIO_LOW);
+}
+
+void I2C_Stop() {
+    GPIO_Write(SDA, GPIO_LOW); I2C_Delay();
+    GPIO_Write(SCL, GPIO_HIGH); I2C_Delay();
+    GPIO_Write(SDA, GPIO_HIGH); I2C_Delay();
+}
+
+void I2C_WriteByte(uint8_t data) {
+    for (int i = 0; i < 8; i++) {
+        GPIO_Write(SDA, (data & 0x80) ? GPIO_HIGH : GPIO_LOW);
+        I2C_Delay();
+        GPIO_Write(SCL, GPIO_HIGH); I2C_Delay();
+        GPIO_Write(SCL, GPIO_LOW); I2C_Delay();
+        data <<= 1;
+    }
+    GPIO_Write(SDA, GPIO_HIGH); I2C_Delay();
+    GPIO_Write(SCL, GPIO_HIGH); I2C_Delay();
+    GPIO_Write(SCL, GPIO_LOW);
+}
+
+void LCD_Raw(uint8_t data) {
+    I2C_Start();
+    I2C_WriteByte(LCD_ADDR);
+    I2C_WriteByte(data | 0x08); // Backlight ON
+    I2C_Stop();
+}
+
+void LCD_WriteNibble(uint8_t nibble, uint8_t rs) {
+    uint8_t base = (nibble & 0xF0) | rs | 0x08;
+    LCD_Raw(base | 0x04);   // EN = 1
+    I2C_Delay();
+    LCD_Raw(base & ~0x04);  // EN = 0
+    I2C_Delay();
+}
+
+void LCD_Send(uint8_t val, uint8_t rs) {
+    LCD_WriteNibble(val & 0xF0, rs);
+    LCD_WriteNibble((val << 4) & 0xF0, rs);
+    for(volatile uint32_t i = 0; i < 5000; i++); 
+}
+
+void LCD_Print(char *str) {
+    while(*str) {
+        LCD_Send((uint8_t)*str++, 0x01); 
     }
 }
 
-void semaforCuButon() {
+void LCD_Init() {
+    GPIO_Init(SDA, GPIO_OUTPUT);
+    GPIO_Init(SCL, GPIO_OUTPUT);
+    
+    for(volatile uint32_t i = 0; i < 200000; i++);
+
+    LCD_WriteNibble(0x30, 0);
+    for(volatile uint32_t i = 0; i < 40000; i++);
+    LCD_WriteNibble(0x30, 0);
+    for(volatile uint32_t i = 0; i < 10000; i++);
+    LCD_WriteNibble(0x30, 0);
+    LCD_WriteNibble(0x20, 0); 
+
+    LCD_Send(0x28, 0); 
+    LCD_Send(0x0C, 0); 
+    LCD_Send(0x06, 0); 
+    LCD_Send(0x01, 0); 
+    for(volatile uint32_t i = 0; i < 50000; i++);
+}
+
+// --- Logica Aplicatiei ---
+
+void initPins(){
     Timer0_Init();
-
-    GPIO_Init(D11, GPIO_OUTPUT); 
-    GPIO_Init(D6, GPIO_OUTPUT);  
-    GPIO_Init(D4, GPIO_OUTPUT); 
-    GPIO_Init(A0, GPIO_OUTPUT);  
-    GPIO_Init(A4, GPIO_OUTPUT);  
-    GPIO_Init(D2, GPIO_INPUT);   
-
-    uint32_t timp_rosu_m = 10000;
-    uint32_t timp_galben_m = 3000;
-    uint32_t timp_verde_m = 8000;
-    uint32_t timp_blink = 3000;
-
-    uint32_t t0 = Millis();
-    uint32_t t_blink = 0;
-    stare = VERDE_MASINI;
-
-    GPIO_Write(D4, GPIO_HIGH); //VerdeM
-    GPIO_Write(A0, GPIO_HIGH); //RosuP
-    GPIO_Write(D11, GPIO_LOW); //RrosuM
-    GPIO_Write(D6, GPIO_LOW);  //GalbenM
-    GPIO_Write(A4, GPIO_LOW);  //VerdeP
-    GPIO_Write(D2, GPIO_HIGH); // pull-up intern
-
-    ExtInt_Init(INT_0, EXT_INT_FALLING_EDGE, buton);
-
-    while (1) {
-        uint32_t timp_curent = Millis();
-
-        switch (stare) {
-            case VERDE_MASINI:
-                if (apasare&&(timp_curent - t0 >= timp_verde_m)) {
-                    apasare = 0;
-                    t0 = timp_curent;
-                    GPIO_Write(D4, GPIO_LOW);  // Oprim Verde masini
-                    GPIO_Write(D6, GPIO_HIGH); // Aprindem Galben masini
-                    stare = GALBEN_MASINI;
-                }
-                break;
-
-            case GALBEN_MASINI:
-                if (timp_curent - t0 >= timp_galben_m) {
-                    t0 = timp_curent;
-                    GPIO_Write(D6, GPIO_LOW);
-                    GPIO_Write(D11, GPIO_HIGH);
-                    GPIO_Write(A0, GPIO_LOW);
-                    GPIO_Write(A4, GPIO_HIGH);
-                    stare = ROSU_MASINI;
-                }
-                break;
-
-            case ROSU_MASINI:
-                if (timp_curent - t0 >= timp_rosu_m) {
-                    t0 = timp_curent;
-                    t_blink = timp_curent;
-                    stare = VERDE_PIETONI_BLINK;
-                }
-                break;
-
-            case VERDE_PIETONI_BLINK:
-                if (timp_curent - t_blink >= 400) {
-                    GPIO_Toggle(A4);
-                    t_blink = timp_curent;
-                }
-
-                if (timp_curent - t0 >= timp_blink) {
-                    t0 = timp_curent;
-                    GPIO_Write(A4, GPIO_LOW);
-                    GPIO_Write(A0, GPIO_HIGH);
-                    GPIO_Write(D11, GPIO_LOW);
-                    GPIO_Write(D4, GPIO_HIGH);
-                    
-                    apasare=0;
-                    stare=VERDE_MASINI;
-                }
-                break;
-        }
-    }
+    GPIO_Init(PWM, GPIO_OUTPUT);
+    GPIO_Init(RPM, GPIO_INPUT);
+    GPIO_Init(TEMP, GPIO_INPUT);
+    
+    // Initializare pini directie (modificat d5/d8)
+    GPIO_Init(SUS, GPIO_INPUT);
+    GPIO_Init(DREAPTA, GPIO_INPUT);
+    GPIO_Init(JOS, GPIO_INPUT);
+    GPIO_Init(STANGA, GPIO_INPUT);
 }
 
 int main(void) {
-    semaforCuButon();
+    initPins();
+    LCD_Init();
+
+    LCD_Send(0x80, 0); // Linia 1
+    LCD_Print("Senzor Detectat:");
+
+    while(1) {
+        LCD_Send(0xC0, 0); // Linia 2
+
+        if      (GPIO_Read(SUS) == GPIO_LOW)     LCD_Print("Buton: SUS      ");
+        else if (GPIO_Read(JOS) == GPIO_LOW)     LCD_Print("Buton: JOS      ");
+        else if (GPIO_Read(STANGA) == GPIO_LOW)  LCD_Print("Buton: STANGA   ");
+        else if (GPIO_Read(DREAPTA) == GPIO_LOW) LCD_Print("Buton: DREAPTA  ");
+        else                                     LCD_Print("Niciunul        ");
+
+        // Loop delay
+        for(volatile uint32_t i = 0; i < 100000; i++);
+    }
     return 0;
 }
