@@ -57,3 +57,19 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# Build artifacts
+*.hex
+*.bin
+*.obj
+*.o
+*.elf
+*.lst
+
+# IDE settings
+.vscode/
+.idea/
+
+# Windows
+Thumbs.db
+Desktop.ini
