@@ -67,7 +67,6 @@ dkms.conf
 *.lst
 
 # IDE settings
-.vscode/
 .idea/
 
 # Windows
