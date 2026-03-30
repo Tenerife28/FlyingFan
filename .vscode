@@ -1,7 +1,7 @@
 {
     "configurations": [
         {
-            "name": "AVR-FlyingFan",
+            "name": "FlyingFan",
             "includePath": [
                 "${workspaceFolder}/**",
                 "${userHome}/scoop/apps/avr-gcc/current/avr/include"
@@ -10,15 +10,14 @@
                 "__AVR_ATmega328P__",
                 "F_CPU=16000000UL"
             ],
+            "forcedInclude": [
+                "${userHome}/scoop/apps/avr-gcc/current/avr/include/avr/iom328p.h"
+            ],
             "compilerPath": "${userHome}/scoop/apps/avr-gcc/current/bin/avr-gcc.exe",
-            "cStandard": "c17",
-            "intelliSenseMode": "gcc-x64",
-            "browse": {
-                "path": [
-                    "${workspaceFolder}",
-                    "${userHome}/scoop/apps/avr-gcc/current/avr/include"
-                ]
-            }
+            "intelliSenseMode": "windows-gcc-x64",
+            "compilerArgs": [
+                "-mmcu=atmega328p"
+            ]
         }
     ],
     "version": 4
