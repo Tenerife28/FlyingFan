@@ -130,15 +130,12 @@ void initPins(){
     GPIO_Init(STANGA, GPIO_INPUT);
 }
 
-// --- Funcția pentru Bara de Progres (Curățată de text) ---
 void drawProgressBar(uint8_t pwm, int8_t momentum) {
-    // Calculăm câte blocuri pline avem din 16 posibile
     uint8_t blocks = (pwm * 16) / 255; 
     if (blocks > 16) blocks = 16;
 
-    LCD_Send(0xC0, 0); // Mutăm fix pe Linia 2
+    LCD_Send(0xC0, 0); 
     
-    // Desenăm blocurile pline (0xFF) și spațiile goale
     for (uint8_t i = 0; i < 16; i++) {
         if (i < blocks) {
             LCD_Send(0xFF, 1); 
@@ -147,7 +144,6 @@ void drawProgressBar(uint8_t pwm, int8_t momentum) {
         }
     }
 
-    // Gestionăm Blink-ul hardware
     if (momentum != 0) {
         uint8_t blink_pos = 0;
         if (momentum > 0) {
@@ -157,10 +153,10 @@ void drawProgressBar(uint8_t pwm, int8_t momentum) {
             blink_pos = (blocks > 0) ? (blocks - 1) : 0;
         }
         
-        LCD_Send(0xC0 + blink_pos, 0); // Mutăm cursorul pe blocul activ
-        LCD_Send(0x0D, 0);             // Blink ON
+        LCD_Send(0xC0 + blink_pos, 0); 
+        LCD_Send(0x0D, 0);             
     } else {
-        LCD_Send(0x0C, 0);             // Blink OFF (Bară statică)
+        LCD_Send(0x0C, 0);             
     }
 }
 
@@ -168,7 +164,7 @@ int main(void) {
     initPins();
     LCD_Init();
     
-    uint8_t current_pwm = 128; // Pornim la 50%
+    uint8_t current_pwm = 128; 
     PWM_Init(D10, 25000); 
     PWM_SetDutyCycle(D10, current_pwm);
 
@@ -184,27 +180,24 @@ int main(void) {
     int8_t momentum = 0;     
     uint32_t last_move_time = Millis();
 
-    // 1. Inițializăm ecranul complet
     LCD_Send(0x80, 0); 
     LCD_Print("RPM: 0          ");
-    drawProgressBar(current_pwm, 0); // Desenăm prima oară bara stabilă
+    drawProgressBar(current_pwm, 0); 
 
     sei(); 
 
     while(1) {
-        // --- Citire senzori ---
         int8_t current_sensor = -1;
         if      (GPIO_Read(SUS) == GPIO_LOW)     current_sensor = 0;
         else if (GPIO_Read(DREAPTA) == GPIO_LOW) current_sensor = 1;
         else if (GPIO_Read(JOS) == GPIO_LOW)     current_sensor = 2;
         else if (GPIO_Read(STANGA) == GPIO_LOW)  current_sensor = 3;
 
-        // --- Procesare Gesturi ---
         if (current_sensor != -1 && current_sensor != last_sensor) {
             uint32_t now = Millis();
 
             if (now - last_move_time > 800) {
-                momentum = 0; // Gest prea lent, s-a rupt mișcarea
+                momentum = 0; 
             } 
             else if (last_sensor != -1) {
                 int8_t step = current_sensor - last_sensor;
@@ -214,17 +207,14 @@ int main(void) {
 
                 int8_t actual_movement = 0;
 
-                // Mișcare cursivă
                 if (step == 1 || step == -1) {
                     momentum = step; 
                     actual_movement = step;
                 } 
-                // A sărit un senzor (Fault Tolerance activat)
                 else if (step == 2 || step == -2) {
                     if (momentum != 0) actual_movement = momentum * 2; 
                 }
 
-                // Aplicăm matematica pe PWM
                 if (actual_movement != 0) {
                     int16_t new_pwm = (int16_t)current_pwm + (actual_movement * 15);
                     
@@ -234,7 +224,6 @@ int main(void) {
                     current_pwm = (uint8_t)new_pwm;
                     PWM_SetDutyCycle(D10, current_pwm);
 
-                    // Desenăm bara de progres și activăm blink-ul în direcția respectivă
                     drawProgressBar(current_pwm, momentum);
                 }
             }
@@ -242,7 +231,6 @@ int main(void) {
             last_move_time = now;
         }
 
-        // --- RPM și Oprirea Blink-ului ---
         uint32_t now = Millis();
         uint32_t elapsed = now - last_rpm_time;
 
@@ -273,8 +261,6 @@ int main(void) {
             LCD_Send(0x80, 0); 
             LCD_Print(lcd_buffer);
 
-            // Dacă gestul s-a oprit de mai mult de 1.5 secunde, oprim blink-ul hardware
-            // (transformăm bara într-un indicator curat, static)
             if (momentum != 0 && (now - last_move_time > 1500)) {
                 momentum = 0;
                 drawProgressBar(current_pwm, 0);
