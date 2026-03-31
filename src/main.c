@@ -132,12 +132,26 @@ void initPins(){
     GPIO_Init(STANGA, GPIO_INPUT);
 }
 
+uint8_t current_pwm = 128;
+
+void update_pwm(int8_t directie) {
+    if (directie > 0) {
+        if (current_pwm <= 220) current_pwm += 35; 
+        else current_pwm = 255;
+    } 
+    else if (directie < 0) {
+        if (current_pwm >= 35) current_pwm -= 35;
+        else current_pwm = 0;
+    }
+    PWM_SetDutyCycle(D10, current_pwm);
+}
+
 int main(void) {
     initPins();
     LCD_Init();
     
     PWM_Init(D10, 25000); 
-    PWM_SetDutyCycle(D10, 255);
+    PWM_SetDutyCycle(D10, current_pwm);
 
     char lcd_buffer[17]; 
     uint16_t rpm = 0;
@@ -147,19 +161,62 @@ int main(void) {
     static uint8_t history_idx = 0;
     static uint8_t is_first_read = 1;
 
+    uint8_t last_sensor = 0;
+    int8_t rotation_score = 0;
+    uint32_t last_move_time = Millis();
+
     LCD_Send(0x80, 0); 
     LCD_Print("RPM: 0          ");
 
     sei(); 
 
     while(1) {
-        LCD_Send(0xC0, 0); 
+        uint8_t current_sensor = 0;
+        if      (GPIO_Read(SUS) == GPIO_LOW)     current_sensor = 1;
+        else if (GPIO_Read(DREAPTA) == GPIO_LOW) current_sensor = 2;
+        else if (GPIO_Read(JOS) == GPIO_LOW)     current_sensor = 3;
+        else if (GPIO_Read(STANGA) == GPIO_LOW)  current_sensor = 4;
 
-        if      (GPIO_Read(SUS) == GPIO_LOW)     LCD_Print("SUS             ");
-        else if (GPIO_Read(JOS) == GPIO_LOW)     LCD_Print("JOS             ");
-        else if (GPIO_Read(STANGA) == GPIO_LOW)  LCD_Print("STANGA          ");
-        else if (GPIO_Read(DREAPTA) == GPIO_LOW) LCD_Print("DREAPTA         ");
-        else                                     LCD_Print("Niciunul        ");
+        if (current_sensor != 0 && current_sensor != last_sensor) {
+            uint32_t now = Millis();
+            
+            if (now - last_move_time > 1000) {
+                rotation_score = 0;
+            }
+            last_move_time = now;
+
+            if ((last_sensor == 1 && current_sensor == 2) ||
+                (last_sensor == 2 && current_sensor == 3) ||
+                (last_sensor == 3 && current_sensor == 4) ||
+                (last_sensor == 4 && current_sensor == 1)) {
+                
+                if (rotation_score < 0) rotation_score = 0;
+                rotation_score++;
+            }
+            else if ((last_sensor == 1 && current_sensor == 4) ||
+                     (last_sensor == 4 && current_sensor == 3) ||
+                     (last_sensor == 3 && current_sensor == 2) ||
+                     (last_sensor == 2 && current_sensor == 1)) {
+                
+                if (rotation_score > 0) rotation_score = 0;
+                rotation_score--;
+            }
+
+            last_sensor = current_sensor;
+
+            LCD_Send(0xC0, 0);
+
+            if (rotation_score >= 3) {
+                update_pwm(1);
+                rotation_score = 0;
+                LCD_Print("Viteza ++       ");
+            }
+            else if (rotation_score <= -3) {
+                update_pwm(-1);
+                rotation_score = 0;
+                LCD_Print("Viteza --       ");
+            }
+        }
 
         uint32_t now = Millis();
         uint32_t elapsed = now - last_rpm_time;
@@ -173,8 +230,8 @@ int main(void) {
             rpm_history[history_idx] = (pulses * 30000UL) / elapsed; 
             
             if (is_first_read) {
-                for(int i = 1; i < 5; i++) {
-                    rpm_history[i] = rpm_history[0]; 
+                for(int j = 1; j < 5; j++) {
+                    rpm_history[j] = rpm_history[0]; 
                 }
                 is_first_read = 0;
             }
@@ -182,8 +239,8 @@ int main(void) {
             history_idx = (history_idx + 1) % 5;
             
             uint32_t avg = 0;
-            for (int i = 0; i < 5; i++) {
-                avg += rpm_history[i];
+            for (int j = 0; j < 5; j++) {
+                avg += rpm_history[j];
             }
             rpm = avg / 5;
 
@@ -191,10 +248,15 @@ int main(void) {
             LCD_Send(0x80, 0); 
             LCD_Print(lcd_buffer);
 
+            if (now - last_move_time > 2000) {
+                LCD_Send(0xC0, 0);
+                LCD_Print("Gestioneaza...  ");
+            }
+
             last_rpm_time = now;
         }
 
-        for(volatile uint32_t i = 0; i < 100000; i++);
+        for(volatile uint32_t i = 0; i < 50000; i++);
     }
     return 0;
 }
