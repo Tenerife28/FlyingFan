@@ -28,7 +28,13 @@ extern volatile uint8_t TCNT0;
 extern volatile uint8_t EICRA;
 extern volatile uint8_t EIMSK;
 extern volatile uint8_t EIFR;
-
+//
+//mocks for PCICR, PCMSK0-2 added below with comments
+extern volatile uint8_t PCICR;  // Pin Change Interrupt Control Register
+extern volatile uint8_t PCMSK0; // Pin Change Mask Register 0
+extern volatile uint8_t PCMSK1; // Pin Change Mask Register 1
+extern volatile uint8_t PCMSK2; // Pin Change Mask Register 2
+//
 // EEPROM
 extern volatile uint8_t EEARL;
 extern volatile uint8_t EEARH;
@@ -70,6 +76,17 @@ extern volatile uint16_t ADC; // 16-bit access
 #define PORTB5 5
 #define PORTB6 6
 #define PORTB7 7
+//
+// ADDED mocks for PCIE0-2, PCINT3 & PB3
+//
+#define PCIE0  0
+#define PCIE1  1
+#define PCIE2  2
+
+#define PCINT3 3
+#define PB3    3
+//
+//
 // ... (Usually standard headers define these, but we rely on bit macros which use 0-7)
 
 // Timer0
