@@ -1,4 +1,6 @@
 #include "drivers/gpio/gpio.h"
+#include "drivers/i2c/i2c.h"
+#include "drivers/lcd/lcd.h"
 #include "drivers/timer/timer0.h"
 #include "bsp/nano.h"
 #include "drivers/interrupt/external_interrupt.h"
@@ -21,89 +23,6 @@
 const uint8_t RPM_PULSES_PER_REV = 2; 
 
 volatile uint16_t pulse_count = 0;
-
-void I2C_Delay() {
-    for(volatile uint8_t i = 0; i < 25; i++); 
-}
-
-void LCD_ShortDelay() {
-    for(volatile uint16_t i = 0; i < 800; i++);
-}
-
-void LCD_LongDelay() {
-    for(volatile uint32_t i = 0; i < 35000; i++);
-}
-
-void I2C_Start() {
-    GPIO_Write(SDA, GPIO_HIGH); GPIO_Write(SCL, GPIO_HIGH); I2C_Delay();
-    GPIO_Write(SDA, GPIO_LOW); I2C_Delay();
-    GPIO_Write(SCL, GPIO_LOW);
-}
-
-void I2C_Stop() {
-    GPIO_Write(SDA, GPIO_LOW); I2C_Delay();
-    GPIO_Write(SCL, GPIO_HIGH); I2C_Delay();
-    GPIO_Write(SDA, GPIO_HIGH); I2C_Delay();
-}
-
-void I2C_WriteByte(uint8_t data) {
-    for (int i = 0; i < 8; i++) {
-        GPIO_Write(SDA, (data & 0x80) ? GPIO_HIGH : GPIO_LOW);
-        I2C_Delay();
-        GPIO_Write(SCL, GPIO_HIGH); I2C_Delay();
-        GPIO_Write(SCL, GPIO_LOW); I2C_Delay();
-        data <<= 1;
-    }
-    GPIO_Write(SDA, GPIO_HIGH); I2C_Delay();
-    GPIO_Write(SCL, GPIO_HIGH); I2C_Delay();
-    GPIO_Write(SCL, GPIO_LOW);
-}
-
-void LCD_WriteNibble(uint8_t nibble, uint8_t rs) {
-    uint8_t base = (nibble & 0xF0) | rs | 0x08; 
-    
-    I2C_Start();
-    I2C_WriteByte(LCD_ADDR);
-    
-    I2C_WriteByte(base | 0x04);  
-    I2C_Delay();
-    I2C_WriteByte(base & ~0x04); 
-    
-    I2C_Stop();
-}
-
-void LCD_Send(uint8_t val, uint8_t rs) {
-    LCD_WriteNibble(val & 0xF0, rs);
-    LCD_WriteNibble((val << 4) & 0xF0, rs);
-    
-    if (val == 0x01 || val == 0x02) LCD_LongDelay();
-    else LCD_ShortDelay();
-}
-
-void LCD_Print(char *str) {
-    while(*str) {
-        LCD_Send((uint8_t)*str++, 0x01); 
-    }
-}
-
-void LCD_Init() {
-    GPIO_Init(SDA, GPIO_OUTPUT);
-    GPIO_Init(SCL, GPIO_OUTPUT);
-    
-    for(volatile uint32_t i = 0; i < 200000; i++);
-
-    LCD_WriteNibble(0x30, 0);
-    for(volatile uint32_t i = 0; i < 60000; i++); 
-    LCD_WriteNibble(0x30, 0);
-    for(volatile uint16_t i = 0; i < 2000; i++); 
-    LCD_WriteNibble(0x30, 0);
-    LCD_WriteNibble(0x20, 0); 
-
-    LCD_Send(0x28, 0); 
-    LCD_Send(0x0C, 0); 
-    LCD_Send(0x06, 0); 
-    LCD_Send(0x01, 0); 
-}
 
 ISR(PCINT0_vect) {
     static uint8_t last_state = 1; 
