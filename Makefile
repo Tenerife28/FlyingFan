@@ -24,7 +24,7 @@ BINDIR = bin
 
 # Compiler Flags
 CFLAGS = -mmcu=$(MCU) -DF_CPU=$(F_CPU) -Os -Wall -Wextra -std=gnu99
-CFLAGS += -I. -Idrivers/gpio -Idrivers/interrupt -Idrivers/timer -Idrivers/eeprom -Idrivers/adc -Ibsp -Iutils -Idrivers/i2c -Idrivers/lcd
+CFLAGS += -I. -Idrivers/gpio -Idrivers/interrupt -Idrivers/timer -Idrivers/eeprom -Idrivers/adc -Ibsp -Iutils -Idrivers/i2c -Idrivers/lcd -Idrivers/display -Idrivers/input -Idrivers/rpm -Idrivers/fan
 
 ifeq ($(BOARD), nano)
     CFLAGS += -DBOARD_NANO
@@ -35,7 +35,7 @@ else
 endif
 
 # Source Files
-SRC = src/main.c drivers/gpio/gpio.c drivers/interrupt/external_interrupt.c drivers/timer/timer0.c drivers/timer/timer1.c drivers/timer/timer2.c drivers/pwm/pwm.c drivers/eeprom/eeprom.c drivers/adc/adc.c utils/delay.c drivers/i2c/i2c.c drivers/lcd/lcd.c
+SRC = src/main.c drivers/gpio/gpio.c drivers/interrupt/external_interrupt.c drivers/timer/timer0.c drivers/timer/timer1.c drivers/timer/timer2.c drivers/pwm/pwm.c drivers/eeprom/eeprom.c drivers/adc/adc.c utils/delay.c drivers/i2c/i2c.c drivers/lcd/lcd.c drivers/display/display.c drivers/input/input.c drivers/rpm/rpm.c drivers/fan/fan.c
 
 # Object Files
 # Replace .c extension with .o and prepend OBJDIR, keeping directory structure
